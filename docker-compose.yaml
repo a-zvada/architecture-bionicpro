@@ -42,3 +42,27 @@ services:
       REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
     depends_on:
       - keycloak
+  telemetry_db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: telemetry_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - ./db/init/tele_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./db/seed/tele_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+    ports:
+      - "5455:5432"
+  crm_db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - ./db/init/crm_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./db/seed/crm_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+    ports:
+      - "5456:5432"
