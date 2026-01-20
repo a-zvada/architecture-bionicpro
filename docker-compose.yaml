@@ -29,19 +29,7 @@ services:
       - "8080:8080"
     depends_on:
       - keycloak_db
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:8000
-      REACT_APP_KEYCLOAK_URL: http://localhost:8080
-      REACT_APP_KEYCLOAK_REALM: reports-realm
-      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
-    depends_on:
-      - keycloak
+  
   telemetry_db:
     image: postgres:16
     restart: unless-stopped
@@ -66,3 +54,125 @@ services:
       - ./db/seed/crm_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
     ports:
       - "5456:5432"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8   # или latest / 25.x по желанию
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      #- clickhouse_data:/var/lib/clickhouse
+      #- ./clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro     # опционально
+      #- ./clickhouse/users.xml:/etc/clickhouse-server/users.d/custom-users.xml:ro # опционально
+      # Если нужны скрипты инициализации (создание баз, таблиц)
+      - ./db/init/analytics_init.sql:/docker-entrypoint-initdb.d/01_db_init.sql
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+      - "9440:9440"
+    environment:
+      CLICKHOUSE_DB: bionic_data
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: admin
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+
+  airflow-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    #volumes:
+    #  - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.1
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      _PIP_ADDITIONAL_REQUIREMENTS:
+        airflow-clickhouse-plugin
+        clickhouse-driver
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    user: "${AIRFLOW_UID:-50000}:0"
+    
+  airflow-webserver:
+    image: apache/airflow:2.9.1
+    command: webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+      _PIP_ADDITIONAL_REQUIREMENTS:
+        airflow-clickhouse-plugin
+        clickhouse-driver
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      #- ./airflow/requirements.txt:/requirements.txt:ro
+    ports:
+      - "8081:8080"
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-scheduler:
+        condition: service_started
+    user: "${AIRFLOW_UID:-50000}:0"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_KEYCLOAK_URL: http://localhost:8080
+      REACT_APP_KEYCLOAK_REALM: reports-realm
+      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
+    depends_on:
+      - keycloak
+      - backend
+  
+
+
