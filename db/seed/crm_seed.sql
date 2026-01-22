@@ -17,6 +17,18 @@ SELECT
 FROM generate_series(1, 100) n
 ;
 
+WITH selected AS (
+    SELECT user_id,
+           ROW_NUMBER() OVER (ORDER BY RANDOM()) AS idx
+    FROM users
+    WHERE email IS NULL OR email = ''
+    LIMIT 3
+)
+UPDATE users u
+SET email = 'prothetic' || idx::text || '@example.com'
+FROM selected s
+WHERE u.user_id = s.user_id;
+
 UPDATE users
 SET email = lower(replace(name, ' ', '.')) || '.' || user_id::text ||
     '@' || 
@@ -32,6 +44,7 @@ SET email = lower(replace(name, ' ', '.')) || '.' || user_id::text ||
         'zoho.com',
         'aol.com'
     ])[1 + floor(random() * 10)::int]
+WHERE email IS NULL
 ;
 
 INSERT INTO prostheses (prosthesis_id, user_id, model, serial_number, purchase_date)

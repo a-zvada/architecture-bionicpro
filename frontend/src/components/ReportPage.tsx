@@ -5,7 +5,7 @@ const ReportPage: React.FC = () => {
   const { keycloak, initialized } = useKeycloak();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  
   const downloadReport = async () => {
   if (!keycloak?.token) {
     setError('Not authenticated');
@@ -39,19 +39,18 @@ const ReportPage: React.FC = () => {
     }
 
     // Создаём Blob и ссылку для скачивания
-    const blob = response.blob();
+    const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-
+    
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
-
-    // Очистка
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-
+    
+    setLoading(false);
   } catch (err) {
     console.error('Ошибка скачивания:', err);
     setError(err instanceof Error ? err.message : 'Ошибка при скачивании отчёта');
@@ -59,7 +58,6 @@ const ReportPage: React.FC = () => {
     setLoading(false);
   }
 };
-
 
   if (!initialized) {
     return <div>Loading...</div>;

@@ -30,7 +30,7 @@ with DAG(
 ) as dag:
 
     def get_max_telemetry_id(**context):
-        ch_hook = ClickHouseHook(clickhouse_conn_id='clickhouse')
+        ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
         
         max_id_query = """
         SELECT max(telemetry_id) AS max_id
@@ -52,7 +52,7 @@ with DAG(
         max_id = context['task_instance'].xcom_pull(key='max_telemetry_id')
         
         # Подключение к telemetry_db
-        tele_hook = PostgresHook(postgres_conn_id='telemetry_postgres')
+        tele_hook = PostgresHook(postgres_conn_id='tele_db')
         
         new_telemetry_query = f"""
         SELECT 
@@ -70,18 +70,7 @@ with DAG(
         if df_telemetry.empty:
             raise ValueError("No new data to process")
         
-        print("Тип recorded_at в первом ряду:", type(df_telemetry['recorded_at'][0]))
-        print("Значение:", df_telemetry['recorded_at'][0])
-
         df_telemetry['recorded_at'] = df_telemetry['recorded_at'].dt.strftime('%Y-%m-%d %H:%M:%S.%f')
-        #df_telemetry['recorded_at'] = pd.to_datetime(df_telemetry['recorded_at'], utc=True)
-        #df_telemetry['recorded_at'] = pd.to_datetime(df_telemetry['recorded_at'], unit='ms')
-        #df['datetime_col'] = pd.to_datetime(df['timestamp_ms'], unit='ms')
-
-        print("Тип recorded_at в первом ряду:", type(df_telemetry['recorded_at'][0]))
-        print("Значение:", df_telemetry['recorded_at'][0])
-
-        
         context['task_instance'].xcom_push(key='new_telemetry_df', value=df_telemetry.to_dict('records'))
         
         # Сохраняем уникальные sensor_id для следующего шага
@@ -101,7 +90,7 @@ with DAG(
             raise ValueError("No sensor_ids to extract CRM data")
         
         # Подключение к crm_db
-        crm_hook = PostgresHook(postgres_conn_id='crm_postgres')
+        crm_hook = PostgresHook(postgres_conn_id='crm_db')
         
         # Джойним Sensors, Prostheses, Users по sensor_ids
         sensor_ids_str = ','.join(map(str, sensor_ids))
@@ -187,10 +176,7 @@ with DAG(
         records = [tuple(row) for row in joined_df.to_numpy()]
         columns = ', '.join(joined_df.columns)
 
-        print("Тип recorded_at в первом ряду:", type(joined_df['recorded_at'][0]))
-        print("Значение:", joined_df['recorded_at'][0])
-
-        ch_hook = ClickHouseHook(clickhouse_conn_id='clickhouse')
+        ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
         
         #values = [(r['telemetry_id'], r['recorded_at'], r['value'], ... ) for r in records]  # соберите список кортежей
         ch_hook.execute(f"INSERT INTO telemetry_analytics ({columns}) VALUES", params=records)
