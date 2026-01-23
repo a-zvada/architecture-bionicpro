@@ -5,30 +5,59 @@ const ReportPage: React.FC = () => {
   const { keycloak, initialized } = useKeycloak();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  
   const downloadReport = async () => {
-    if (!keycloak?.token) {
-      setError('Not authenticated');
-      return;
+  if (!keycloak?.token) {
+    setError('Not authenticated');
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError(null);
+
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${keycloak.token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
-        headers: {
-          'Authorization': `Bearer ${keycloak.token}`
-        }
-      });
-
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
+    // Получаем имя файла из заголовка Content-Disposition
+    const disposition = response.headers.get('content-disposition');
+    let fileName = 'report.pdf';
+    if (disposition && disposition.includes('filename=')) {
+      const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+      const matches = filenameRegex.exec(disposition);
+      if (matches?.[1]) {
+        fileName = matches[1].replace(/['"]/g, '');
+      }
     }
-  };
+
+    // Создаём Blob и ссылку для скачивания
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    setLoading(false);
+  } catch (err) {
+    console.error('Ошибка скачивания:', err);
+    setError(err instanceof Error ? err.message : 'Ошибка при скачивании отчёта');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!initialized) {
     return <div>Loading...</div>;
