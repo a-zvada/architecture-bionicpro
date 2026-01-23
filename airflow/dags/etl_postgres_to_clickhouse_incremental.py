@@ -22,7 +22,7 @@ with DAG(
     dag_id='etl_postgres_to_clickhouse_incremental',
     default_args=default_args,
     description='Incremental ETL from CRM/Telemetry Postgres to ClickHouse',
-    schedule_interval='@hourly',  # Ежечасно
+    schedule_interval='*/2 * * * *',
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=['etl', 'clickhouse', 'postgres'],

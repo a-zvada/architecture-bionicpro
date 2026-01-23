@@ -1,4 +1,4 @@
 /postgres-keycloak-data
 /airflow/logs
-/airflow/dag/__pycache__
+/airflow/dags/__pycache__
 2024__yandex-architecture-sso.code-workspace

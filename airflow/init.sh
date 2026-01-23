@@ -1,3 +1,0 @@
-airflow connections add 'crm_postgres' --conn-type 'postgres'  --conn-host 'crm_db' --conn-login 'admin' --conn-password 'admin' --conn-schema 'crm_db' --conn-port '5432'
-airflow connections add 'telemetry_postgres' --conn-type 'postgres'  --conn-host 'telemetry_db' --conn-login 'admin' --conn-password 'admin' --conn-schema 'telemetry_db' --conn-port '5432'
-airflow connections add 'clickhouse' --conn-type 'postgres'  --conn-host 'clickhouse' --conn-login 'admin' --conn-password 'admin' --conn-schema 'bionic_data' --conn-port '9000'
